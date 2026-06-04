@@ -1,0 +1,198 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Gesture Painter - Real-Time Light Painting & Interactive Sound</title>
+  
+  <!-- SEO Meta Tags -->
+  <meta name="description" content="A real-time, browser-based light painting application controlled by hand gestures using MediaPipe Hands and Web Audio API. Draw neon trails with sound.">
+  <meta name="keywords" content="Gesture Painter, MediaPipe, Web Audio API, Canvas, Light Painting, Interactive Audio, Javascript">
+  
+  <link rel="stylesheet" href="./css/style.css">
+  <link rel="icon" href="data:,">
+  
+  <!-- MediaPipe CDN Imports -->
+  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js" crossorigin="anonymous"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
+</head>
+<body>
+
+  <!-- Hidden Video Element used for hand tracking (and corner PIP overlay) -->
+  <video id="video" autoplay playsinline></video>
+
+  <!-- Fullscreen Interactive Canvas -->
+  <canvas id="canvas"></canvas>
+
+  <!-- Status HUD Overlay -->
+  <div class="status-hud" id="status-hud">
+    <div class="status-tag status-inactive" id="status-indicator">Initializing...</div>
+    <div id="gesture-indicator">No Hand</div>
+    <div id="fps-indicator" style="color: var(--neon-cyan)">0 FPS</div>
+  </div>
+
+  <!-- Glassmorphic Control Sidebar Panel -->
+  <aside class="control-sidebar" id="control-sidebar">
+    <!-- Title Section -->
+    <header class="app-title">
+      <h1>GESTURE PAINTER</h1>
+      <p>GEN-2 SYST. ACTIVE // VANILLA JS</p>
+    </header>
+
+    <hr>
+
+    <!-- Colors Section -->
+    <section class="control-group">
+      <h2 class="section-label">Neon Palette</h2>
+      <div class="colors-grid">
+        <button class="color-swatch swatch-cyan color-swatch-active" data-rgb="0, 240, 255" aria-label="Neon Cyan"></button>
+        <button class="color-swatch swatch-magenta" data-rgb="255, 0, 128" aria-label="Neon Magenta"></button>
+        <button class="color-swatch swatch-purple" data-rgb="170, 0, 255" aria-label="Neon Purple"></button>
+        <button class="color-swatch swatch-emerald" data-rgb="0, 255, 120" aria-label="Neon Emerald"></button>
+        <button class="color-swatch swatch-gold" data-rgb="255, 210, 0" aria-label="Neon Gold"></button>
+        
+        <!-- Custom Color Picker -->
+        <div class="custom-color-wrapper" title="Choose Custom Color">
+          <input type="color" id="custom-color" value="#00f0ff" aria-label="Custom Color Picker">
+        </div>
+
+        <!-- Rainbow cycle preset card -->
+        <button class="preset-card" id="rainbow-btn" style="padding: 6px 12px; margin-left: auto;">
+          <span class="preset-title" style="font-size: 11px; background: linear-gradient(90deg, #ff0000, #00ff00, #0000ff); -webkit-background-clip: text; -webkit-text-fill-color: transparent;">🌈 RAINBOW</span>
+        </button>
+      </div>
+    </section>
+
+    <!-- Brush Size Slider -->
+    <section class="control-group">
+      <div class="slider-header">
+        <span>Brush Size</span>
+        <span class="slider-val" id="size-val">12px</span>
+      </div>
+      <input type="range" id="size-slider" min="2" max="60" value="12" step="1">
+    </section>
+
+    <!-- Trail Lifespan Slider -->
+    <section class="control-group">
+      <div class="slider-header">
+        <span>Trail Decay</span>
+        <span class="slider-val" id="fade-val">2s</span>
+      </div>
+      <input type="range" id="fade-slider" min="0" max="8" value="2.0" step="0.5">
+    </section>
+
+    <hr>
+
+    <!-- Audio Waveform Selection -->
+    <section class="control-group">
+      <h2 class="section-label">Synthesizer Voice</h2>
+      <div class="wave-selector">
+        <button class="wave-btn" data-wave="sine">Sine</button>
+        <button class="wave-btn wave-btn-active" data-wave="triangle">Tri</button>
+        <button class="wave-btn" data-wave="sawtooth">Saw</button>
+        <button class="wave-btn" data-wave="square">Square</button>
+      </div>
+    </section>
+
+    <hr>
+
+    <!-- Audio & Rendering Presets -->
+    <section class="control-group">
+      <h2 class="section-label">Creative Presets</h2>
+      <div class="presets-container">
+        <div class="preset-card preset-card-active" data-preset="cosmic">
+          <div class="preset-title" style="color: var(--neon-cyan)">Cosmic</div>
+          <div class="preset-desc">Smooth Cyber Trails</div>
+        </div>
+        <div class="preset-card" data-preset="fire">
+          <div class="preset-title" style="color: var(--neon-gold)">Fire</div>
+          <div class="preset-desc">Slow Fluid Sparks</div>
+        </div>
+        <div class="preset-card" data-preset="laser">
+          <div class="preset-title" style="color: var(--neon-magenta)">Laser</div>
+          <div class="preset-desc">Sharp Infinite Lines</div>
+        </div>
+        <div class="preset-card" data-preset="aurora">
+          <div class="preset-title" style="color: var(--neon-emerald)">Aurora</div>
+          <div class="preset-desc">Wide Fading Swatches</div>
+        </div>
+      </div>
+    </section>
+
+    <hr>
+
+    <!-- Core Actions HUD -->
+    <section class="action-grid">
+      <button class="control-btn btn-clear" id="clear-btn">
+        <span class="icon">🗑️</span> Clear Canvas
+      </button>
+      <button class="control-btn" id="mute-btn">
+        <span class="icon">🔊</span> Mute Audio
+      </button>
+      <button class="control-btn control-btn-active" id="mirror-toggle">
+        <span class="icon">🪞</span> Mirror View
+      </button>
+      <button class="control-btn" id="cam-toggle">
+        <span class="icon">📷</span> Overlay: Dim
+      </button>
+    </section>
+  </aside>
+
+  <!-- Landing / Welcome / Audio Permission Modal -->
+  <div class="modal-overlay" id="landing-modal">
+    <main class="modal-content">
+      <div class="modal-title">
+        <h2>GESTURE PAINTER</h2>
+        <p>Air light-painting with real-time sound synthesis</p>
+      </div>
+      
+      <div class="instructions-list">
+        <h3 class="section-label" style="margin-bottom: 12px; color: #fff;">How To Control:</h3>
+        
+        <div class="instruction-item">
+          <span class="instruction-emoji">☝️</span>
+          <div class="instruction-text">
+            <strong>Draw (Paint Mode)</strong>
+            <p>Extend only your Index Finger. Move it around to paint glowing trails and hear corresponding high-pitched synth tones.</p>
+          </div>
+        </div>
+
+        <div class="instruction-item">
+          <span class="instruction-emoji">✌️</span>
+          <div class="instruction-text">
+            <strong>Hover (Aim Mode)</strong>
+            <p>Extend Index & Middle fingers. Moves target cursor and changes filter sweeps without drawing on the canvas.</p>
+          </div>
+        </div>
+
+        <div class="instruction-item">
+          <span class="instruction-emoji">✊</span>
+          <div class="instruction-text">
+            <strong>Erase (Clean Mode)</strong>
+            <p>Make a closed fist. Pass it over painted lines to erase them vector-style in real time with dust spark feedback.</p>
+          </div>
+        </div>
+      </div>
+
+      <button class="btn-start" id="start-btn" autofocus>ENTER CANVASES & ENABLE AUDIO</button>
+    </main>
+  </div>
+
+  <!-- Camera Connection Error Overlay -->
+  <div class="modal-overlay hidden" id="error-overlay">
+    <div class="modal-content error-content">
+      <h3>Webcam Offline</h3>
+      <p>The application could not access your system's camera. Ensure permission is granted and no other application is holding the camera busy.</p>
+      
+      <div class="error-msg-box" id="error-message">
+        PermissionDeniedError: The requested device is in use or blocked.
+      </div>
+      
+      <button class="btn-retry" id="retry-btn">Back to Workspace</button>
+    </div>
+  </div>
+
+  <!-- Application Controller Entry Module -->
+  <script type="module" src="./js/app.js"></script>
+</body>
+</html>
